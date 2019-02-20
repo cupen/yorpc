@@ -29,6 +29,7 @@ type RpcSession struct {
 
 func NewRpcSession(id string, handlers map[uint16]MsgHandler) *RpcSession {
 	return &RpcSession{
+		id:        id,
 		Handlers:  handlers,
 		CallBakcs: map[uint8]func([]byte){},
 	}
@@ -72,74 +73,58 @@ func (this *RpcSession) Start(ws *websocket.Conn) error {
 		switch msgType {
 		case websocket.TextMessage:
 		case websocket.BinaryMessage:
-			// byte-1
-			callFlag := msgBody[0]
-			isReq := (callFlag >> 7) == 1
-			callSeqId := (callFlag & 0x7f)
-
-			// callback
-			var msgId uint16
-			var msgData []byte
-			if callSeqId > 0 {
-				if isReq {
-					// byte-2~3
-					msgId = binary.LittleEndian.Uint16(msgBody[1:3])
-					msgData = msgBody[3:]
-				} else {
-					msgData = msgBody[1:]
-					callback, _ := this.CallBakcs[callSeqId]
-					if callback == nil {
-						log.Printf("Invalid callSeqId: %d. callFlag: %d\n", callSeqId, callFlag)
-						continue
-					}
-					callback(msgData)
-					this.CallBakcs[callSeqId] = nil
-					continue
-				}
-			} else {
-				// byte-2~3
-				msgId = binary.LittleEndian.Uint16(msgBody[1:3])
-				msgData = msgBody[3:]
-			}
-			handler, _ := this.Handlers[msgId]
-			if handler == nil {
-				log.Printf("Invalid msgId: %d. callFlag: %d\n", msgId, callFlag)
-				continue
-			}
-			handler(this, callSeqId, msgData)
-
-		// case 3: // request
-		// 	callSeqId := uint8(msgBody[0])
-		// 	msgId := binary.LittleEndian.Uint16(msgBody[1:3])
-		// 	msgData := msgBody[3:]
-
-		// 	handler, _ := this.Handlers[msgId]
-		// 	if handler == nil {
-		// 		log.Printf("Invalid msgId: %d.\n", msgId)
-		// 		continue
-		// 	}
-		// 	handler(this, callSeqId, msgData)
-
-		// case 4: // response
-		// 	callSeqId := uint8(msgBody[0])
-		// 	// msgId := binary.LittleEndian.Uint16(msgBody[1:2])
-		// 	msgData := msgBody[1:]
-		// 	callback, _ := this.CallBakcs[callSeqId]
-		// 	if callback == nil {
-		// 		log.Printf("Invalid callSeqId: %d.\n", callSeqId)
-		// 	}
-		// 	callback(msgData)
-		// 	this.CallBakcs[callSeqId] = nil
-
+			this.onMessage(msgBody)
 		case websocket.PingMessage:
 			log.Printf("ping.\n")
-
 		case websocket.CloseMessage:
 			log.Printf("close.\n")
 			break
 		}
 	}
 	return nil
+}
+
+func (this *RpcSession) onMessage(msgBody []byte) {
+	callFlag := msgBody[0]
+	isReq := (callFlag >> 7) == 1
+	callSeqId := (callFlag & 0x7f)
+
+	// callback
+	var msgId uint16
+	var msgData []byte
+	var callRs []byte
+	if callSeqId > 0 {
+		if isReq {
+			// byte-2~3
+			msgId = binary.LittleEndian.Uint16(msgBody[1:3])
+			msgData = msgBody[3:]
+			defer func() {
+				log.Printf("return msg callSeqId: %d. callFlag: %d\n", callSeqId, callFlag)
+				this.ReturnMsg(callSeqId, callRs)
+			}()
+
+		} else {
+			msgData = msgBody[1:]
+			callback, _ := this.CallBakcs[callSeqId]
+			if callback == nil {
+				log.Printf("Invalid callSeqId: %d. callFlag: %d\n", callSeqId, callFlag)
+				return
+			}
+			callback(msgData)
+			this.CallBakcs[callSeqId] = nil
+			return
+		}
+	} else {
+		// byte-2~3
+		msgId = binary.LittleEndian.Uint16(msgBody[1:3])
+		msgData = msgBody[3:]
+	}
+	handler, _ := this.Handlers[msgId]
+	if handler == nil {
+		log.Printf("Invalid msgId: %d. callFlag: %d\n", msgId, callFlag)
+		return
+	}
+	callRs = handler(this, msgData)
 }
 
 func (this *RpcSession) Stop() {

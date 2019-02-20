@@ -6,13 +6,13 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type WebSocketHandler struct {
+type WebSocket struct {
 	Upgrader websocket.Upgrader
 	options  Options
 }
 
-func NewWebSocketHandler(options Options) *WebSocketHandler {
-	return &WebSocketHandler{
+func NewWebSocket(options Options) *WebSocket {
+	return &WebSocket{
 		options:  options,
 		Upgrader: websocket.Upgrader{},
 	}
@@ -35,7 +35,7 @@ func NewWebSocketHandler(options Options) *WebSocketHandler {
 // 	})
 // }
 
-func (this *WebSocketHandler) ServeHttp(w http.ResponseWriter, r *http.Request, session Connection) error {
+func (this *WebSocket) ServeHttp(w http.ResponseWriter, r *http.Request, session Connection) error {
 	ws, err := this.Upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return err
