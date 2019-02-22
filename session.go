@@ -69,10 +69,9 @@ func (this *RpcSession) Start(ws *websocket.Conn) error {
 		if err != nil {
 			break
 		}
-		log.Printf("%d body:%v\n", msgType, msgBody)
+		log.Printf("msgType:%d msgBody:%v\n", msgType, msgBody)
 		switch msgType {
-		case websocket.TextMessage:
-		case websocket.BinaryMessage:
+		case websocket.BinaryMessage, websocket.TextMessage:
 			this.onMessage(msgBody)
 		case websocket.PingMessage:
 			log.Printf("ping.\n")
@@ -92,14 +91,14 @@ func (this *RpcSession) onMessage(msgBody []byte) {
 	// callback
 	var msgId uint16
 	var msgData []byte
-	var callRs []byte
+	var callRs []byte = nil
 	if callSeqId > 0 {
 		if isReq {
 			// byte-2~3
 			msgId = binary.LittleEndian.Uint16(msgBody[1:3])
 			msgData = msgBody[3:]
 			defer func() {
-				log.Printf("return msg callSeqId: %d. callFlag: %d\n", callSeqId, callFlag)
+				log.Printf("return msg callSeqId:%d. callFlag:%d data:%v\n", callSeqId, callFlag, callRs)
 				this.ReturnMsg(callSeqId, callRs)
 			}()
 
