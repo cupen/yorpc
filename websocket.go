@@ -13,8 +13,11 @@ type WebSocket struct {
 
 func NewWebSocket(options Options) *WebSocket {
 	return &WebSocket{
-		options:  options,
-		Upgrader: websocket.Upgrader{},
+		options: options,
+		Upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			}},
 	}
 }
 
