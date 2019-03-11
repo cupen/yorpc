@@ -13,6 +13,7 @@ type Session interface {
 	GetID() string
 	GetPlayer() interface{}
 	SendMsg(uint16, []byte)
+	// Call(uint16, []byte, func([]byte))
 	ReturnMsg(uint8, []byte)
 }
 
@@ -20,7 +21,7 @@ type RpcSession struct {
 	id        string
 	ws        *websocket.Conn
 	Handlers  map[uint16]MsgHandler
-	CallBakcs map[uint8]func([]byte)
+	CallBacks map[uint8]func([]byte)
 
 	msgQueue   chan []byte
 	msgQueue2  chan []byte
@@ -31,7 +32,7 @@ func NewRpcSession(id string, handlers map[uint16]MsgHandler) *RpcSession {
 	return &RpcSession{
 		id:        id,
 		Handlers:  handlers,
-		CallBakcs: map[uint8]func([]byte){},
+		CallBacks: map[uint8]func([]byte){},
 	}
 }
 
@@ -69,12 +70,13 @@ func (this *RpcSession) Start(ws *websocket.Conn) error {
 		if err != nil {
 			break
 		}
-		log.Printf("msgType:%d msgBody:%v\n", msgType, msgBody)
+		// log.Printf("msgType:%d msgBody:%v\n", msgType, msgBody)
 		switch msgType {
 		case websocket.BinaryMessage, websocket.TextMessage:
 			this.onMessage(msgBody)
 		case websocket.PingMessage:
 			log.Printf("ping.\n")
+			this.ws.WriteMessage(websocket.PongMessage, nil)
 		case websocket.CloseMessage:
 			log.Printf("close.\n")
 			break
@@ -98,19 +100,19 @@ func (this *RpcSession) onMessage(msgBody []byte) {
 			msgId = binary.LittleEndian.Uint16(msgBody[1:3])
 			msgData = msgBody[3:]
 			defer func() {
-				log.Printf("return msg callSeqId:%d. callFlag:%d data:%v\n", callSeqId, callFlag, callRs)
+				// log.Printf("return msg callSeqId:%d. callFlag:%d data:%v\n", callSeqId, callFlag, callRs)
 				this.ReturnMsg(callSeqId, callRs)
 			}()
 
 		} else {
 			msgData = msgBody[1:]
-			callback, _ := this.CallBakcs[callSeqId]
+			callback, _ := this.CallBacks[callSeqId]
 			if callback == nil {
 				log.Printf("Invalid callSeqId: %d. callFlag: %d\n", callSeqId, callFlag)
 				return
 			}
 			callback(msgData)
-			this.CallBakcs[callSeqId] = nil
+			this.CallBacks[callSeqId] = nil
 			return
 		}
 	} else {
@@ -130,7 +132,7 @@ func (this *RpcSession) Stop() {
 }
 
 func (this *RpcSession) Call(msgId uint16, data []byte, callback func([]byte)) {
-	log.Printf("call %d\n", msgId)
+	// log.Printf("call %d\n", msgId)
 	this.callSeqNum++
 	callSeqId := this.callSeqNum
 
@@ -141,12 +143,12 @@ func (this *RpcSession) Call(msgId uint16, data []byte, callback func([]byte)) {
 	msgBody := []byte{callFlag}
 	msgBody = append(msgBody, msgIdBytes...)
 	msgBody = append(msgBody, data...)
-	this.CallBakcs[this.callSeqNum] = callback
+	this.CallBacks[this.callSeqNum] = callback
 	this.ws.WriteMessage(2, msgBody)
 }
 
 func (this *RpcSession) SendMsg(msgId uint16, data []byte) {
-	log.Printf("send %d\n", msgId)
+	// log.Printf("send %d\n", msgId)
 	msgIdBytes := []byte{0, 0}
 	binary.LittleEndian.PutUint16(msgIdBytes, msgId)
 
@@ -157,7 +159,7 @@ func (this *RpcSession) SendMsg(msgId uint16, data []byte) {
 }
 
 func (this *RpcSession) ReturnMsg(callSeqId uint8, data []byte) {
-	log.Printf("return call %d\n", callSeqId)
+	// log.Printf("return call %d\n", callSeqId)
 	// isReq + callSeqId
 	var callFlag uint8 = (0 << 7) + (callSeqId & 0x7f)
 	data = append([]byte{callFlag}, data...)
