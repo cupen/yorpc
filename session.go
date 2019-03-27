@@ -2,7 +2,6 @@ package yorpc
 
 import (
 	"encoding/binary"
-	"fmt"
 	"log"
 	"time"
 
@@ -12,7 +11,10 @@ import (
 type Session interface {
 	GetID() string
 	GetPlayer() interface{}
+	Open()
+	Stop()
 	SendMsg(uint16, []byte)
+	// Call(uint16, []byte, func([]byte))
 	ReturnMsg(uint8, []byte)
 }
 
@@ -40,10 +42,13 @@ func (this *RpcSession) StartWithUrl(url string) error {
 	if err != nil {
 		return err
 	}
-	return this.Start(conn)
+	return this.Start(conn, nil)
 }
 
 func (this *RpcSession) EnableHeartBeat(intervDrt time.Duration) {
+	if intervDrt <= 0 {
+		return
+	}
 	go func() {
 		t := time.NewTicker(intervDrt)
 		for {
@@ -61,20 +66,23 @@ func (this *RpcSession) EnableHeartBeat(intervDrt time.Duration) {
 }
 
 // 开始接收并处理消息
-// TODO: 用 epoll 取代 goroutine
-func (this *RpcSession) Start(ws *websocket.Conn) error {
+func (this *RpcSession) Start(ws *websocket.Conn, opts *Options) error {
 	this.ws = ws
+	// this.EnableHeartBeat(opts.GetHeartBeatDrt())
 	for {
 		msgType, msgBody, err := this.ws.ReadMessage()
 		if err != nil {
 			break
 		}
-		log.Printf("msgType:%d msgBody:%v\n", msgType, msgBody)
+		// log.Printf("msgType:%d msgBody:%v\n", msgType, msgBody)
 		switch msgType {
 		case websocket.BinaryMessage, websocket.TextMessage:
 			this.onMessage(msgBody)
 		case websocket.PingMessage:
 			log.Printf("ping.\n")
+			this.ws.WriteMessage(websocket.PongMessage, nil)
+		case websocket.PongMessage:
+			log.Printf("pong.\n")
 		case websocket.CloseMessage:
 			log.Printf("close.\n")
 			break
@@ -98,7 +106,7 @@ func (this *RpcSession) onMessage(msgBody []byte) {
 			msgId = binary.LittleEndian.Uint16(msgBody[1:3])
 			msgData = msgBody[3:]
 			defer func() {
-				log.Printf("return msg callSeqId:%d. callFlag:%d data:%v\n", callSeqId, callFlag, callRs)
+				// log.Printf("return msg callSeqId:%d. callFlag:%d data:%v\n", callSeqId, callFlag, callRs)
 				this.ReturnMsg(callSeqId, callRs)
 			}()
 
@@ -126,11 +134,8 @@ func (this *RpcSession) onMessage(msgBody []byte) {
 	callRs = handler(this, msgData)
 }
 
-func (this *RpcSession) Stop() {
-}
-
 func (this *RpcSession) Call(msgId uint16, data []byte, callback func([]byte)) {
-	log.Printf("call %d\n", msgId)
+	// log.Printf("call %d\n", msgId)
 	this.callSeqNum++
 	callSeqId := this.callSeqNum
 
@@ -146,7 +151,7 @@ func (this *RpcSession) Call(msgId uint16, data []byte, callback func([]byte)) {
 }
 
 func (this *RpcSession) SendMsg(msgId uint16, data []byte) {
-	log.Printf("send %d\n", msgId)
+	// log.Printf("send %d\n", msgId)
 	msgIdBytes := []byte{0, 0}
 	binary.LittleEndian.PutUint16(msgIdBytes, msgId)
 
@@ -157,17 +162,26 @@ func (this *RpcSession) SendMsg(msgId uint16, data []byte) {
 }
 
 func (this *RpcSession) ReturnMsg(callSeqId uint8, data []byte) {
-	log.Printf("return call %d\n", callSeqId)
+	// log.Printf("return call %d\n", callSeqId)
 	// isReq + callSeqId
 	var callFlag uint8 = (0 << 7) + (callSeqId & 0x7f)
 	data = append([]byte{callFlag}, data...)
 	this.ws.WriteMessage(websocket.BinaryMessage, data)
 }
 
-func (this *RpcSession) GetPlayer() interface{} {
-	panic(fmt.Errorf("Not implement"))
-}
-
 func (this *RpcSession) GetID() string {
 	return this.id
+}
+
+func (this *RpcSession) GetPlayer() interface{} {
+	// panic(fmt.Errorf("Not implement"))
+	return nil
+}
+
+func (this *RpcSession) Open() {
+	// panic(fmt.Errorf("Not implement"))
+}
+
+func (this *RpcSession) Stop() {
+	// panic(fmt.Errorf("Not implement"))
 }

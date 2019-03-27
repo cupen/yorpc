@@ -43,7 +43,7 @@ func (this *WebSocket) ServeHttp(w http.ResponseWriter, r *http.Request, session
 	if err != nil {
 		return err
 	}
-	return session.Start(ws)
+	return session.Start(ws, &this.options)
 }
 
 // func (this *WebSocketServer) Shutdown(timeout int) error {

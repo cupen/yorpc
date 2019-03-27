@@ -1,6 +1,9 @@
 package yorpc
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type Options struct {
 	MaxConn        int // 最大连接数
@@ -16,4 +19,12 @@ func (this *Options) Check() {
 	if this.HeartBeat < 60 {
 		panic(fmt.Errorf("Invalid HeartBeat:%d", this.HeartBeat))
 	}
+}
+
+func (this *Options) GetHeartBeatDrt() time.Duration {
+	if this == nil {
+		return 0
+	}
+	return time.Duration(this.HeartBeat) * time.Second
+
 }
