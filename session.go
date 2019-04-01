@@ -2,6 +2,7 @@ package yorpc
 
 import (
 	"encoding/binary"
+	"fmt"
 	"log"
 	"time"
 
@@ -37,12 +38,13 @@ func NewRpcSession(id string, handlers map[uint16]MsgHandler) *RpcSession {
 	}
 }
 
-func (this *RpcSession) StartWithUrl(url string) error {
-	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
-	if err != nil {
-		return err
+func (this *RpcSession) Connect(ws *WebSocket) error {
+	if ws.Conn == nil {
+		panic(fmt.Errorf("Invalid websocket"))
+		return nil
 	}
-	return this.Start(conn, nil)
+	this.ws = ws.Conn
+	return nil
 }
 
 func (this *RpcSession) EnableHeartBeat(intervDrt time.Duration) {
@@ -66,8 +68,10 @@ func (this *RpcSession) EnableHeartBeat(intervDrt time.Duration) {
 }
 
 // 开始接收并处理消息
-func (this *RpcSession) Start(ws *websocket.Conn, opts *Options) error {
-	this.ws = ws
+func (this *RpcSession) Start(opts Options) error {
+	if this.ws == nil {
+		return fmt.Errorf("Invalid ws")
+	}
 	// this.EnableHeartBeat(opts.GetHeartBeatDrt())
 	for {
 		msgType, msgBody, err := this.ws.ReadMessage()
@@ -147,6 +151,10 @@ func (this *RpcSession) Call(msgId uint16, data []byte, callback func([]byte)) {
 	msgBody = append(msgBody, msgIdBytes...)
 	msgBody = append(msgBody, data...)
 	this.CallBakcs[this.callSeqNum] = callback
+	if this.ws == nil {
+		log.Printf("websocket was nil\n")
+		return
+	}
 	this.ws.WriteMessage(2, msgBody)
 }
 
@@ -158,6 +166,10 @@ func (this *RpcSession) SendMsg(msgId uint16, data []byte) {
 	var callFlag uint8 = 0
 	msgBody := append([]byte{callFlag}, msgIdBytes...)
 	msgBody = append(msgBody, data...)
+	if this.ws == nil {
+		log.Printf("websocket was nil\n")
+		return
+	}
 	this.ws.WriteMessage(websocket.BinaryMessage, msgBody)
 }
 
@@ -166,6 +178,10 @@ func (this *RpcSession) ReturnMsg(callSeqId uint8, data []byte) {
 	// isReq + callSeqId
 	var callFlag uint8 = (0 << 7) + (callSeqId & 0x7f)
 	data = append([]byte{callFlag}, data...)
+	if this.ws == nil {
+		log.Printf("websocket was nil\n")
+		return
+	}
 	this.ws.WriteMessage(websocket.BinaryMessage, data)
 }
 
