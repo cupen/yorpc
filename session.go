@@ -9,87 +9,93 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type Event int
+
+var Events = struct {
+	Starting      Event
+	Stopping      Event
+	KeepAliveTick Event
+}{
+	Starting:      1,
+	Stopping:      2,
+	KeepAliveTick: 3,
+}
+
 type Session interface {
+	GetType() string
 	GetID() string
 	GetPlayer() interface{}
-	Open()
-	Stop()
+	OnEvent(Event) error
 	SendMsg(uint16, []byte)
 	// Call(uint16, []byte, func([]byte))
 	ReturnMsg(uint8, []byte)
+	KeepAlive(time.Duration)
+	IsAlive(now time.Time) bool
+	Stop()
 }
 
 type RpcSession struct {
-	id        string
-	ws        *websocket.Conn
-	Handlers  map[uint16]MsgHandler
-	CallBakcs map[uint8]func([]byte)
-
-	msgQueue   chan []byte
-	msgQueue2  chan []byte
+	id         string
+	ws         *websocket.Conn
+	Handlers   map[uint16]MsgHandler
+	Callbacks  map[uint8]func([]byte)
 	callSeqNum uint8
+	closedAt   time.Time
 }
 
 func NewRpcSession(id string, handlers map[uint16]MsgHandler) *RpcSession {
 	return &RpcSession{
 		id:        id,
 		Handlers:  handlers,
-		CallBakcs: map[uint8]func([]byte){},
+		Callbacks: map[uint8]func([]byte){},
 	}
 }
 
 func (this *RpcSession) Connect(ws *WebSocket) error {
-	if ws.Conn == nil {
-		panic(fmt.Errorf("Invalid websocket"))
-		return nil
+	return this.Connect2(ws.Conn)
+}
+
+func (this *RpcSession) Connect2(ws *websocket.Conn) error {
+	if ws == nil {
+		return fmt.Errorf("Invalid websocket")
 	}
-	this.ws = ws.Conn
+	this.ws = ws
 	return nil
 }
 
-func (this *RpcSession) EnableHeartBeat(intervDrt time.Duration) {
-	if intervDrt <= 0 {
-		return
-	}
-	go func() {
-		t := time.NewTicker(intervDrt)
-		for {
-			<-t.C
-			if this.ws == nil {
-				continue
-			}
-			err := this.ws.WriteMessage(websocket.PingMessage, nil)
-			if err != nil {
-				this.ws.Close()
-				break
-			}
-		}
-	}()
+func (this *RpcSession) KeepAlive(ttl time.Duration) {
+	this.closedAt = time.Now().Add(ttl)
 }
 
-// 开始接收并处理消息
+func (this *RpcSession) IsAlive(now time.Time) bool {
+	if this.closedAt.IsZero() {
+		return true
+	}
+	return now.Before(this.closedAt)
+}
+
 func (this *RpcSession) Start(opts Options) error {
 	if this.ws == nil {
 		return fmt.Errorf("Invalid ws")
 	}
-	// this.EnableHeartBeat(opts.GetHeartBeatDrt())
+	this.OnEvent(Events.Starting)
 	for {
 		msgType, msgBody, err := this.ws.ReadMessage()
 		if err != nil {
-			break
+			this.OnEvent(Events.Stopping)
+			return err
 		}
 		// log.Printf("msgType:%d msgBody:%v\n", msgType, msgBody)
 		switch msgType {
 		case websocket.BinaryMessage, websocket.TextMessage:
 			this.onMessage(msgBody)
 		case websocket.PingMessage:
-			log.Printf("ping.\n")
 			this.ws.WriteMessage(websocket.PongMessage, nil)
 		case websocket.PongMessage:
-			log.Printf("pong.\n")
+			this.KeepAlive(opts.GetHeartBeatDrt())
 		case websocket.CloseMessage:
-			log.Printf("close.\n")
-			break
+			this.ws.Close()
+			return nil
 		}
 	}
 	return nil
@@ -116,13 +122,13 @@ func (this *RpcSession) onMessage(msgBody []byte) {
 
 		} else {
 			msgData = msgBody[1:]
-			callback, _ := this.CallBakcs[callSeqId]
+			callback, _ := this.Callbacks[callSeqId]
 			if callback == nil {
 				log.Printf("Invalid callSeqId: %d. callFlag: %d\n", callSeqId, callFlag)
 				return
 			}
 			callback(msgData)
-			this.CallBakcs[callSeqId] = nil
+			this.Callbacks[callSeqId] = nil
 			return
 		}
 	} else {
@@ -150,7 +156,7 @@ func (this *RpcSession) Call(msgId uint16, data []byte, callback func([]byte)) {
 	msgBody := []byte{callFlag}
 	msgBody = append(msgBody, msgIdBytes...)
 	msgBody = append(msgBody, data...)
-	this.CallBakcs[this.callSeqNum] = callback
+	this.Callbacks[this.callSeqNum] = callback
 	if this.ws == nil {
 		log.Printf("websocket was nil\n")
 		return
@@ -185,6 +191,10 @@ func (this *RpcSession) ReturnMsg(callSeqId uint8, data []byte) {
 	this.ws.WriteMessage(websocket.BinaryMessage, data)
 }
 
+func (this *RpcSession) GetType() string {
+	return "player"
+}
+
 func (this *RpcSession) GetID() string {
 	return this.id
 }
@@ -194,10 +204,17 @@ func (this *RpcSession) GetPlayer() interface{} {
 	return nil
 }
 
-func (this *RpcSession) Open() {
-	// panic(fmt.Errorf("Not implement"))
+func (this *RpcSession) OnEvent(e Event) error {
+	switch e {
+	case Events.Starting:
+	case Events.Stopping:
+	default:
+	}
+	return nil
 }
 
 func (this *RpcSession) Stop() {
-	// panic(fmt.Errorf("Not implement"))
+	if this.ws != nil {
+		this.ws.Close()
+	}
 }
