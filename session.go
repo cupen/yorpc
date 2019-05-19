@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -41,6 +42,7 @@ type RpcSession struct {
 	Callbacks  map[uint8]func([]byte)
 	callSeqNum uint8
 	closedAt   time.Time
+	mux        sync.Mutex
 }
 
 func NewRpcSession(id string, handlers map[uint16]MsgHandler) *RpcSession {
@@ -90,7 +92,7 @@ func (this *RpcSession) Start(opts Options) error {
 		case websocket.BinaryMessage, websocket.TextMessage:
 			this.onMessage(msgBody)
 		case websocket.PingMessage:
-			this.ws.WriteMessage(websocket.PongMessage, nil)
+			this.write(websocket.PongMessage, nil)
 		case websocket.PongMessage:
 			this.KeepAlive(opts.GetHeartBeatDrt())
 		case websocket.CloseMessage:
@@ -99,6 +101,12 @@ func (this *RpcSession) Start(opts Options) error {
 		}
 	}
 	return nil
+}
+
+func (this *RpcSession) write(msgType int, data []byte) error {
+	this.mux.Lock()
+	defer this.mux.Unlock()
+	return this.ws.WriteMessage(msgType, data)
 }
 
 func (this *RpcSession) onMessage(msgBody []byte) {
@@ -161,7 +169,8 @@ func (this *RpcSession) Call(msgId uint16, data []byte, callback func([]byte)) {
 		log.Printf("websocket was nil\n")
 		return
 	}
-	this.ws.WriteMessage(2, msgBody)
+
+	this.write(websocket.BinaryMessage, msgBody)
 }
 
 func (this *RpcSession) SendMsg(msgId uint16, data []byte) {
@@ -176,7 +185,7 @@ func (this *RpcSession) SendMsg(msgId uint16, data []byte) {
 		log.Printf("websocket was nil\n")
 		return
 	}
-	this.ws.WriteMessage(websocket.BinaryMessage, msgBody)
+	this.write(websocket.BinaryMessage, msgBody)
 }
 
 func (this *RpcSession) ReturnMsg(callSeqId uint8, data []byte) {
@@ -188,7 +197,7 @@ func (this *RpcSession) ReturnMsg(callSeqId uint8, data []byte) {
 		log.Printf("websocket was nil\n")
 		return
 	}
-	this.ws.WriteMessage(websocket.BinaryMessage, data)
+	this.write(websocket.BinaryMessage, data)
 }
 
 func (this *RpcSession) GetType() string {

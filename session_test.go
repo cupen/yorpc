@@ -41,8 +41,13 @@ var handlers = map[uint16]MsgHandler{
 		return msgData
 	},
 }
+var isStarting = false
 
 func startServerForTest(listen string, path string) {
+	if isStarting {
+		return
+	}
+	isStarting = true
 	http.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{}
 		session := NewRpcSession("1", handlers)
