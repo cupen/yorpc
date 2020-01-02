@@ -26,6 +26,7 @@ type Session interface {
 	GetType() string
 	GetID() string
 	GetPlayer() interface{}
+	GetToken() string
 	OnEvent(Event) error
 	SendMsg(uint16, []byte)
 	// Call(uint16, []byte, func([]byte))
@@ -37,6 +38,7 @@ type Session interface {
 
 type RpcSession struct {
 	id         string
+	token      string
 	ws         *websocket.Conn
 	Handlers   map[uint16]MsgHandler
 	Callbacks  map[uint8]func([]byte)
@@ -45,9 +47,10 @@ type RpcSession struct {
 	mux        sync.Mutex
 }
 
-func NewRpcSession(id string, handlers map[uint16]MsgHandler) *RpcSession {
+func NewRpcSession(id, token string, handlers map[uint16]MsgHandler) *RpcSession {
 	return &RpcSession{
 		id:        id,
+		token:     token,
 		Handlers:  handlers,
 		Callbacks: map[uint8]func([]byte){},
 	}
@@ -197,7 +200,10 @@ func (this *RpcSession) ReturnMsg(callSeqId uint8, data []byte) {
 		log.Printf("websocket was nil\n")
 		return
 	}
-	this.write(websocket.BinaryMessage, data)
+	err := this.write(websocket.BinaryMessage, data)
+	if err != nil {
+		log.Printf("write error %v", err)
+	}
 }
 
 func (this *RpcSession) GetType() string {
@@ -206,6 +212,10 @@ func (this *RpcSession) GetType() string {
 
 func (this *RpcSession) GetID() string {
 	return this.id
+}
+
+func (this *RpcSession) GetToken() string {
+	return this.token
 }
 
 func (this *RpcSession) GetPlayer() interface{} {
@@ -223,7 +233,13 @@ func (this *RpcSession) OnEvent(e Event) error {
 }
 
 func (this *RpcSession) Stop() {
+	this.mux.Lock()
+	defer this.mux.Unlock()
 	if this.ws != nil {
+		err := this.ws.WriteControl(websocket.CloseMessage, nil, time.Now().Add(10*time.Second))
+		if err != nil {
+			log.Printf("websocket close failed err=%v", err)
+		}
 		this.ws.Close()
 	}
 }
