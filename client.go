@@ -32,8 +32,15 @@ func (this *Client) Call(ctx context.Context, id uint16, args []byte) ([]byte, e
 	msgBody := []byte{callFlag}
 	msgBody = append(msgBody, msgIdBytes...)
 	msgBody = append(msgBody, args...)
-	this.Callbacks[this.callSeqNum] = callback
+	var callRs []byte = nil
+	this.Callbacks[this.callSeqNum] = func(rs []byte) {
+		callRs = rs
+
+		d := ctx.Done()
+		d <- struct{}{}
+	}
 	// this.write(websocket.BinaryMessage, msgBody)
+	return callRs, nil
 }
 
 func (this *Client) Send(id uint16, args []byte) error {
