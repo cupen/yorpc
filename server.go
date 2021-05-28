@@ -97,6 +97,7 @@ func (this *Server) onMessage(msgBody []byte) error {
 		return this.OnSend(msgId, msgData)
 	}
 
+	var err error
 	var callRs []byte = nil
 	if isCall {
 		// call
@@ -108,7 +109,7 @@ func (this *Server) onMessage(msgBody []byte) error {
 			this.ReturnMsg(callSeqId, callRs)
 		}()
 		callRs, err = this.OnCall(msgId, msgData)
-		return
+		return err
 	}
 
 	// callback
@@ -116,7 +117,7 @@ func (this *Server) onMessage(msgBody []byte) error {
 	callback, _ := this.Callbacks[callSeqId]
 	if callback == nil {
 		log.Printf("Invalid callSeqId: %d. callFlag: %d\n", callSeqId, callFlag)
-		return
+		return nil
 	}
 	callback(msgData)
 	delete(this.Callbacks, callSeqId)
@@ -166,7 +167,7 @@ func (this *Server) ReturnMsg(callSeqId uint8, data []byte) {
 }
 
 func (this *Server) OnCall(id uint16, data []byte) ([]byte, error) {
-	return nil
+	return nil, nil
 }
 
 func (this *Server) OnSend(id uint16, data []byte) error {
