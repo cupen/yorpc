@@ -50,7 +50,7 @@ func startServerForTest(listen string, path string) {
 	isStarting = true
 	http.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{}
-		session := NewRpcSession("1", handlers)
+		session := NewRpcSession("1", "2", handlers)
 		ws, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			panic(err)
@@ -67,7 +67,7 @@ func newClient(url string) (*RpcSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := NewRpcSession("abc", handlers)
+	c := NewRpcSession("abc", "def", handlers)
 	c.Connect2(ws)
 	return c, nil
 }
@@ -109,7 +109,7 @@ func TestRPC(t *testing.T) {
 func TestKeepAlive(t *testing.T) {
 	assert := assert.New(t)
 
-	s := NewRpcSession("", nil)
+	s := NewRpcSession("1", "2", nil)
 	s.KeepAlive(time.Second)
 	now := time.Now()
 	assert.True(s.IsAlive(now))
