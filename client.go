@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/binary"
 	"net"
+
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
 )
 
 type Client struct {
@@ -33,14 +36,18 @@ func (this *Client) Call(ctx context.Context, id uint16, args []byte) ([]byte, e
 	msgBody = append(msgBody, msgIdBytes...)
 	msgBody = append(msgBody, args...)
 	var callRs []byte = nil
-	this.Callbacks[this.callSeqNum] = func(rs []byte) {
+	ctx, cancel := context.WithCancel(ctx)
+	this.Callbacks[callSeqId] = func(rs []byte) {
 		callRs = rs
-
-		d := ctx.Done()
-		d <- struct{}{}
+		cancel()
 	}
-	// this.write(websocket.BinaryMessage, msgBody)
-	return callRs, nil
+	err := wsutil.WriteClientMessage(this.conn, ws.OpBinary, msgBody)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	<-ctx.Done()
+	return callRs, err
 }
 
 func (this *Client) Send(id uint16, args []byte) error {
