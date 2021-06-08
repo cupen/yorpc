@@ -1,7 +1,7 @@
 package yorpc
 
 type ClientSession interface {
-	Call(id uint16, args []byte, callback func([]byte)) error
+	Call(id uint16, args []byte) ([]byte, error)
 	Send(id uint16, args []byte) error
 }
 

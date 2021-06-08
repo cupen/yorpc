@@ -15,11 +15,10 @@ type Client struct {
 	Callbacks  map[uint8]func([]byte)
 }
 
-func NewClient(url string) (*Client, error) {
-
-}
-
-func (this *Client) run() error {
+func NewClient(conn Connection) (*Client, error) {
+	return &Client{
+		Callbacks: map[uint8]func([]byte){},
+	}, nil
 }
 
 func (this *Client) Call(ctx context.Context, id uint16, args []byte) ([]byte, error) {
@@ -51,5 +50,6 @@ func (this *Client) Call(ctx context.Context, id uint16, args []byte) ([]byte, e
 }
 
 func (this *Client) Send(id uint16, args []byte) error {
+	return nil
 
 }

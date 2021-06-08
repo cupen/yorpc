@@ -20,7 +20,7 @@ type Server struct {
 	callSeqNum uint8
 }
 
-func NewServer(opts *Options) *Server {
+func NewServer(conn Connection, opts *Options) *Server {
 	return &Server{
 		Handlers:   nil,
 		Callbacks:  nil,
@@ -80,48 +80,6 @@ func (this *Server) run(r *http.Request, w http.ResponseWriter) error {
 
 func (this *Server) write(data []byte) error {
 	return wsutil.WriteServerMessage(this.conn, ws.OpBinary, data)
-}
-
-func (this *Server) onMessage(msgBody []byte) error {
-	callFlag := msgBody[0]
-	isCall := (callFlag >> 7) == 1
-	callSeqId := (callFlag & 0x7f)
-
-	var msgId uint16
-	var msgData []byte
-	if callSeqId <= 0 {
-		// send
-		// byte-2~3
-		msgId = binary.LittleEndian.Uint16(msgBody[1:3])
-		msgData = msgBody[3:]
-		return this.OnSend(msgId, msgData)
-	}
-
-	var err error
-	var callRs []byte = nil
-	if isCall {
-		// call
-		// byte-2~3
-		msgId = binary.LittleEndian.Uint16(msgBody[1:3])
-		msgData = msgBody[3:]
-		defer func() {
-			// log.Printf("return msg callSeqId:%d. callFlag:%d data:%v\n", callSeqId, callFlag, callRs)
-			this.ReturnMsg(callSeqId, callRs)
-		}()
-		callRs, err = this.OnCall(msgId, msgData)
-		return err
-	}
-
-	// callback
-	msgData = msgBody[1:]
-	callback, _ := this.Callbacks[callSeqId]
-	if callback == nil {
-		log.Printf("Invalid callSeqId: %d. callFlag: %d\n", callSeqId, callFlag)
-		return nil
-	}
-	callback(msgData)
-	delete(this.Callbacks, callSeqId)
-	return nil
 }
 
 func (this *Server) Call(msgId uint16, data []byte, callback func([]byte)) {
