@@ -1,11 +1,20 @@
 package yorpc
 
 type ClientSession interface {
-	Call(id uint16, args []byte) ([]byte, error)
+	// Send a message.
 	Send(id uint16, args []byte) error
+
+	// Send a message and receive a result.
+	Call(id uint16, args []byte) ([]byte, error)
+
+	// Receive a result of call.
+	OnCallback(id uint8, args []byte) error
 }
 
 type ServerSession interface {
-	OnCall(id uint16, args []byte) ([]byte, error)
+	// Receive a message
 	OnSend(id uint16, args []byte) error
+
+	// Request-Response
+	OnCall(id uint16, args []byte) ([]byte, error)
 }
