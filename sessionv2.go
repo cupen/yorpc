@@ -7,7 +7,7 @@ type ClientSession interface {
 	// Send a message and receive a result.
 	Call(id uint16, args []byte) ([]byte, error)
 
-	// Receive a result of call.
+	// forward a message to call.
 	OnCallback(id uint8, args []byte) error
 }
 

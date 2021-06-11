@@ -1,6 +1,8 @@
 package yorpc
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Handler func([]byte) ([]byte, error)
 type HandlersHub struct {
@@ -34,4 +36,23 @@ func (h *HandlersHub) GetHandler(id uint16) (Handler, error) {
 		return handler, nil
 	}
 	return nil, fmt.Errorf("no handler(id=%d)", id)
+}
+
+func (h *HandlersHub) OnCall(id uint16, args []byte) ([]byte, error) {
+	// log.Printf("server.OnCall id=%d args=%v", id, args)
+	handler, err := h.GetHandler(id)
+	if err != nil {
+		return nil, err
+	}
+	return handler(args)
+}
+
+func (h *HandlersHub) OnSend(id uint16, args []byte) error {
+	// log.Printf("server.OnSend id=%d args=%v", id, args)
+	handler, err := h.GetHandler(id)
+	if err != nil {
+		return err
+	}
+	_, err = handler(args)
+	return err
 }

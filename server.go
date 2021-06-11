@@ -7,20 +7,21 @@ import (
 	"sync"
 )
 
-type MsgHandlerV2 func(ServerSession, []byte)
-
 type Server struct {
-	conn     Connection
-	handlers *HandlersHub
-	mux      sync.Mutex
-	peer     *Client
+	conn    Connection
+	session ServerSession
+	mux     sync.Mutex
+	peer    *Client
 }
 
-func NewServer(conn Connection, handlers *HandlersHub, opts *Options) *Server {
+func NewServer(conn Connection, sess ServerSession, opts *Options) *Server {
+	if sess == nil {
+		panic(fmt.Errorf("nil handlershub"))
+	}
 	return &Server{
-		conn:     conn,
-		handlers: handlers,
-		peer:     NewClientByConn(conn),
+		conn:    conn,
+		session: sess,
+		peer:    NewClientByConn(conn),
 	}
 }
 
@@ -65,22 +66,11 @@ func (s *Server) writeMessage(msg []byte) {
 }
 
 func (s *Server) OnCall(id uint16, args []byte) ([]byte, error) {
-	log.Printf("server.OnCall id=%d args=%v", id, args)
-	handler, err := s.handlers.GetHandler(id)
-	if err != nil {
-		return nil, err
-	}
-	return handler(args)
+	return s.session.OnCall(id, args)
 }
 
 func (s *Server) OnSend(id uint16, args []byte) error {
-	log.Printf("server.OnSend id=%d args=%v", id, args)
-	handler, err := s.handlers.GetHandler(id)
-	if err != nil {
-		return err
-	}
-	_, err = handler(args)
-	return err
+	return s.session.OnSend(id, args)
 }
 
 func (s *Server) onMessage(msg []byte) error {
@@ -112,7 +102,8 @@ func (s *Server) onMessage(msg []byte) error {
 		callRs, err = s.OnCall(msgId, msgBody)
 		return err
 	}
-	log.Printf("server.peer on call")
+
+	// callback
 	msgBody := msg[1:]
 	return s.peer.OnCallback(callId, msgBody)
 }
