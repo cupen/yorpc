@@ -7,10 +7,10 @@ import (
 
 type Player interface {
 	// rpc
-	Speak(args []byte) ([]byte, error)
+	Speak(*Message) ([]byte, error)
 
 	// handler
-	SpeakAsync(args []byte) error
+	SpeakAsync(*Message) error
 }
 
 type PlayerSession struct {
@@ -31,7 +31,15 @@ func (server *PlayerSession) OnCall(methodId uint16, args []byte) ([]byte, error
 
 	switch methodId {
 	case 1:
-		return api.Speak(args)
+		msg := Message{}
+		if err := msg.UnmarshalYB(args); err != nil {
+			return nil, err
+		}
+		resp, err := api.Speak(&msg)
+		if err != nil {
+			return nil, err
+		}
+		return resp, err
 	default:
 		return nil, errors.New("no api defined")
 	}
@@ -45,7 +53,11 @@ func (server *PlayerSession) OnSend(methodId uint16, args []byte) error {
 
 	switch methodId {
 	case 2:
-		return api.SpeakAsync(args)
+		msg := Message{}
+		if err := msg.UnmarshalYB(args); err != nil {
+			return err
+		}
+		return api.SpeakAsync(&msg)
 	default:
 		return errors.New("no api defined")
 	}

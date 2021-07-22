@@ -1,0 +1,15 @@
+package chatroom
+
+@meta(id=10001, encoding=tiny, desc="聊天消息")
+struct Message {
+    string UserID  = 1;
+    string Text = 2;
+    int64 int64 = 3;
+}
+
+@meta(id=1001, desc="发送聊天消息")
+rpc Speak(text:Message) (void)
+
+
+@meta(id=1002, desc="发送聊天消息")
+rpc SpeakAsync(text: Message) (void)

@@ -41,7 +41,7 @@ func runServer(address string) {
 		if id == "" {
 			panic(fmt.Errorf("missing nickname"))
 		}
-		p := chatroom.NewPlayerSession(chatroom.NewPlayerImpl(id))
+		p := chatroom.NewChatroomSession(chatroom.NewPlayerImpl(id))
 		s := yorpc.NewServer(conn, p, opts)
 		if err := s.Run(); err != nil {
 			log.Printf("server stopped: %v", err)
@@ -63,7 +63,16 @@ func runClient(address string, nickName string) {
 	for {
 		ctx, _ := context.WithTimeout(context.Background(), 1*time.Second)
 		i++
-		resp, err := c.Call(ctx, 1, []byte(fmt.Sprintf("hello! I'm %s. %d", nickName, i)))
+		msg := chatroom.Message{
+			UserID: "userId",
+			Text:   fmt.Sprintf("%d 你好啊,我是 %s", i, nickName),
+			Int64:  int64(i),
+		}
+		data, err := msg.Marshal()
+		if err != nil {
+			panic(err)
+		}
+		resp, err := c.Call(ctx, 1001, data)
 		if err != nil {
 			log.Panicf("call failed: %v  resp=%v", err, resp)
 		}

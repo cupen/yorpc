@@ -48,20 +48,21 @@ func (s *Server) Run() error {
 			return err
 		}
 
-		log.Printf("server received message: %v", msg)
 		if len(msg) <= 0 {
+			log.Printf("server received empty message")
 			continue
 		}
 
 		err = s.onMessage(msg)
 		if err != nil {
-			return err
+			log.Printf("server handle message failed. err:%v  data:%v", err, msg)
+			continue
 		}
 	}
 }
 
 func (s *Server) writeMessage(msg []byte) {
-	log.Printf("server write %v", msg)
+	log.Printf("server write bytes: %d", len(msg))
 	s.conn.WriteMessage(msg)
 }
 

@@ -13,3 +13,7 @@ start:
 stop:
 	tmux kill-session -t yorpc
 
+
+yobuffer:
+	yobuffer compile --src ./chatroom/chatroom.yb
+
