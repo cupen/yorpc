@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Learn</title>
+    <script src="https://pixijs.download/release/pixi.js"></script>
+    <script src="/client/js/client.js"></script>
+</head>
+
+<body>
+    <div id="game" style="width: 640px; height: 480px; margin: 100px auto;"></div>
+    <script>
+        const params = new URLSearchParams(window.location.search)
+        class Game extends PIXI.Application {
+            constructor(args) {
+                super(args);
+                this.players = new Map();
+            }
+            run() {
+                console.info("game start")
+                setInterval(() => {
+                    this.onNetwork();
+                }, 1000);
+                this.ticker.add((delta) => {
+                    this.onUpdate();
+                });
+            }
+            bindNetwork(conn) {
+                this.conn = conn;
+                return this.conn.start((event) => {
+                    let msg = JSON.parse(event.data);
+                    this.onMessage(msg.type, msg.data)
+                })
+            }
+            onMessageStateV2(data) {
+                for (let d of data) {
+                    if (d.id == this.self.id) {
+                        continue
+                    }
+                    let p = this.players.get(d.id)
+                    p.move(d.x, d.y)
+                    // console.info(`statsv2: player ${d.id} ${d.x} ${d.y}`)
+                }
+            }
+            onMessage(name, data) {
+                switch (name) {
+                    case "statev2":
+                        this.onMessageStateV2(data)
+                        break;
+                    case "start":
+                        // this.onStart();
+                        break;
+                    case "join":
+                        console.info(`playerjoin ${data.id}`)
+                        this.addPlayerFrom(data.id, data.x, data.y)
+                }
+            }
+
+            addPlayerSelf(p) {
+                this.addPlayer(p)
+                this.self = p
+            }
+            addPlayerFrom(id, x, y) {
+                let p = newPlayer(id, 0)
+                    .then((p) => {
+                        p.pos.x = x
+                        p.pos.y = y
+                        this.addPlayer(p)
+                    })
+            }
+            addPlayer(p) {
+                this.players.set(p.id, p);
+                this.stage.addChild(p.asSprite());
+                console.log(`add player ${p.id} ${this.players.size}`)
+            }
+            removePlayer(id) {
+                this.players.delete(id);
+            }
+            onNetwork() {
+                // for (const [id, p] of this.players) {
+                this.self.onNetwork(this.conn);
+                // }
+            }
+            onUpdate() {
+                // console.info("game update")
+                for (const p of this.players.values()) {
+                    p.onUpdate();
+                }
+            }
+        }
+
+        async function load_avatars(fname, index) {
+            let texture = await PIXI.Assets.load("/client/img/sample.jpg")
+            let w = 500;
+            let h = 668;
+            let m = [
+                new PIXI.Rectangle(0, 0, w / 2, h / 3),
+                new PIXI.Rectangle(w / 2, 0, w / 2, h / 3),
+                new PIXI.Rectangle(0, h / 3, w / 2, h / 3),
+                new PIXI.Rectangle(w / 2, h / 3, w / 2, h / 3),
+                new PIXI.Rectangle(0, (h / 3) * 2, w / 2, h / 3),
+                new PIXI.Rectangle(w / 2, (h / 3) * 2, w / 2, h / 3),
+            ]
+            texture.frame = m[index];
+            return texture
+        }
+        let id = params.get("id")
+        id = id ? id : 0
+        async function newPlayer(id, avatar) {
+            let p = new Player(id, `Player-${id}`)
+            texture = await load_avatars("sample.jpg", avatar)
+            const s = PIXI.Sprite.from(texture);
+            s.scale.set(0.5);
+            p.bindAvatar(0, s)
+            return p
+        }
+
+        async function main() {
+            let app = new Game({ width: 640, height: 360 });
+            let g = document.getElementById('game')
+            g.appendChild(app.view);
+            document.addEventListener('keydown', (e) => {
+                self.onKeyEvent('keydown', e.keyCode)
+            })
+
+            document.addEventListener('keyup', (e) => {
+                self.onKeyEvent('keyup', e.keyCode)
+            })
+
+            let conn = new Connection("ws://localhost:5000/ws?" + `id=${id}`)
+            const self = await newPlayer(id, 0)
+            app.addPlayerSelf(self)
+            app.bindNetwork(conn)
+                .then(() => {
+                    console.info("connected")
+                })
+                .catch((e) => {
+                    console.log(e)
+                })
+            app.run()
+        }
+        main();
+    </script>
+</body>
+
+</html>

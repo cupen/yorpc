@@ -9,21 +9,23 @@ import (
 )
 
 var (
-	structs     map[int]reflect.Type
-	tinyEncoder = tiny.NewEncoder()
-	tinyDecoder = tiny.NewDecoder()
+	structs map[int]reflect.Type
 )
 
 func init() {
 	structs = map[int]reflect.Type{
 		0: reflect.TypeOf(&void{}),
-
+	
 		10001: reflect.TypeOf(&Message{}),
 	}
 }
 
-// void
+
+
+
+// void 
 type void struct {
+	
 }
 
 func (t *void) Size() (size int) {
@@ -32,29 +34,22 @@ func (t *void) Size() (size int) {
 
 func (t *void) Marshal() ([]byte, error) {
 	dAtA := make([]byte, t.Size())
-	i := 0
-	if i != len(dAtA) {
-		return nil, fmt.Errorf("invalid data size. expected:%d  actual:%d", len(dAtA), i)
-	}
 	return dAtA, nil
 }
 
 func (t *void) Unmarshal(dAtA []byte) error {
-	i := 0
-	_ = i
 	return nil
-
 }
-
 // Message "聊天消息"
 type Message struct {
-	UserID string `yobuffer:"1"`
-	Text   string `yobuffer:"2"`
-	Int64  int64  `yobuffer:"3"`
+	UserID int64 `yobuffer:"1"`
+	Text string `yobuffer:"2"`
+	Int64 int64 `yobuffer:"3"`
+	
 }
 
 func (t *Message) Size() (size int) {
-	size += 4 + len(t.UserID) // UserID<string>
+	size += 8 // UserID<int64>
 
 	size += 4 + len(t.Text) // Text<string>
 
@@ -64,61 +59,66 @@ func (t *Message) Size() (size int) {
 }
 
 func (t *Message) Marshal() ([]byte, error) {
-	dAtA := make([]byte, t.Size())
+	dAtA := make([]byte, t.Size()) 
+	enc := tiny.GetEncoder()
 	i := 0
-	// UserID<string>
-	tinyEncoder.String(dAtA[i:], t.UserID)
-	i += 4 + len(t.UserID)
-
-	// Text<string>
-	tinyEncoder.String(dAtA[i:], t.Text)
-	i += 4 + len(t.Text)
-
-	// Int64<int64>
-	tinyEncoder.Int64(dAtA[i:], t.Int64)
+	// UserID<int64>
+	enc.Int64(dAtA[i:], t.UserID)
 	i += 8
-
+	
+	// Text<string>
+	enc.String(dAtA[i:], t.Text)
+	i += 4+len(t.Text)
+	
+	// Int64<int64>
+	enc.Int64(dAtA[i:], t.Int64)
+	i += 8
+	
 	if i != len(dAtA) {
 		return nil, fmt.Errorf("invalid data size. expected:%d  actual:%d", len(dAtA), i)
 	}
+
 	return dAtA, nil
 }
 
-func (t *Message) Unmarshal(dAtA []byte) error {
+func (t *Message) Unmarshal(dAtA []byte) error { 
+	dec := tiny.GetDecoder()
 	i := 0
-	_ = i
-	// UserID<string>
-	t.UserID = tinyDecoder.String(dAtA[i:])
-	i += 4 + len(t.UserID)
-
-	// Text<string>
-	t.Text = tinyDecoder.String(dAtA[i:])
-	i += 4 + len(t.Text)
-
-	// Int64<int64>
-	t.Int64 = tinyDecoder.Int64(dAtA[i:])
+	// UserID<int64>
+	t.UserID = dec.Int64(dAtA[i:])
 	i += 8
-
+	
+	// Text<string>
+	t.Text = dec.String(dAtA[i:])
+	i += 4+len(t.Text)
+	
+	// Int64<int64>
+	t.Int64 = dec.Int64(dAtA[i:])
+	i += 8
+	
 	return nil
-
 }
 
+
+
+
 // ==================
-//     Define RPC
+//     Define RPC 
 // ==================
 // ChatroomAPI ...
 type ChatroomAPI interface {
 	// "发送聊天消息"
-	// (text Message,)
-	Speak(*Message) (*void, error)
-
+	// (text Message,) 
+	Speak(*Message)(*void, error)
+	
 	// "发送聊天消息"
-	// (text Message,)
-	SpeakAsync(*Message) (*void, error)
+	// (text Message,) 
+	SpeakAsync(*Message)(*void, error)
+	
 }
 
 func NewChatroomSession(instance ChatroomAPI) *ChatroomSession {
-	return &ChatroomSession{
+	return &ChatroomSession {
 		instance: instance,
 	}
 }

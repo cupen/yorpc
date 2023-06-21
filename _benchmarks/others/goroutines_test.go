@@ -1,18 +1,24 @@
 package yorpc
 
-import "testing"
+import (
+	"sync"
+	"testing"
+)
 
 func BenchmarkGoroutineSwitch(b *testing.B) {
-	ch := make(chan struct{})
-	ch2 := make(chan struct{})
-	ch3 := make(chan struct{})
+	ch := make(chan struct{}, 1_000_000)
+	ch2 := make(chan struct{}, 1_000_000)
+	ch3 := make(chan struct{}, 1_000_000)
 	b.Cleanup(func() {
 		close(ch)
 		close(ch2)
 		close(ch3)
 	})
 
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for {
 			select {
 			case <-ch:
@@ -33,4 +39,5 @@ func BenchmarkGoroutineSwitch(b *testing.B) {
 	}
 	ch2 <- struct{}{}
 	<-ch2
+	wg.Wait()
 }

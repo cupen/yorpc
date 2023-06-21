@@ -1,45 +1,45 @@
-package yorpc
+package handlerhub
 
 import (
 	"fmt"
 )
 
 type Handler func([]byte) ([]byte, error)
-type HandlersHub struct {
+type Hub struct {
 	handlers map[uint16]Handler
 }
 
-func NewHandlersHub() *HandlersHub {
-	return &HandlersHub{
+func New() *Hub {
+	return &Hub{
 		handlers: map[uint16]Handler{},
 	}
 }
 
-func (h *HandlersHub) RegisterRPC(id uint16, handler Handler) {
+func (h *Hub) Register(id uint16, handler Handler) {
 	if old, ok := h.handlers[id]; ok {
 		panic(fmt.Errorf("already registerted. old=%v handler=%v", GetFuncName(old), GetFuncName(handler)))
 	}
 	h.handlers[id] = handler
 }
 
-func (h *HandlersHub) RegisterRPCAsync(id uint16, handler func([]byte) error) {
+func (h *Hub) Register2(id uint16, handler func([]byte)) {
 	if old, ok := h.handlers[id]; ok {
 		panic(fmt.Errorf("already registerted. old=%v handler=%v", GetFuncName(old), GetFuncName(handler)))
 	}
 	h.handlers[id] = func(args []byte) ([]byte, error) {
-		return nil, handler(args)
+		handler(args)
+		return nil, nil
 	}
 }
 
-func (h *HandlersHub) GetHandler(id uint16) (Handler, error) {
+func (h *Hub) GetHandler(id uint16) (Handler, error) {
 	if handler, ok := h.handlers[id]; ok {
 		return handler, nil
 	}
 	return nil, fmt.Errorf("no handler(id=%d)", id)
 }
 
-func (h *HandlersHub) OnCall(id uint16, args []byte) ([]byte, error) {
-	// log.Printf("server.OnCall id=%d args=%v", id, args)
+func (h *Hub) OnCall(id uint16, args []byte) ([]byte, error) {
 	handler, err := h.GetHandler(id)
 	if err != nil {
 		return nil, err
@@ -47,12 +47,15 @@ func (h *HandlersHub) OnCall(id uint16, args []byte) ([]byte, error) {
 	return handler(args)
 }
 
-func (h *HandlersHub) OnSend(id uint16, args []byte) error {
-	// log.Printf("server.OnSend id=%d args=%v", id, args)
+func (h *Hub) OnSend(id uint16, args []byte) {
 	handler, err := h.GetHandler(id)
 	if err != nil {
-		return err
+		h.onError(id, args, err)
+		return
 	}
 	_, err = handler(args)
-	return err
+	h.onError(id, args, err)
+}
+
+func (h *Hub) onError(id uint16, args []byte, err error) {
 }

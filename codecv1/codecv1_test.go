@@ -1,4 +1,4 @@
-package yorpc
+package codecv1
 
 import (
 	"testing"
@@ -8,6 +8,7 @@ import (
 
 func TestEncodeCall(t *testing.T) {
 	assert := assert.New(t)
+	codec := CodecV1{}
 
 	msg := codec.EncodeCall(1, 2, []byte{4, 5, 6})
 	assert.Equal([]byte{0b10000001, 2, 0, 4, 5, 6}, msg)
@@ -17,6 +18,7 @@ func TestEncodeCall(t *testing.T) {
 }
 
 func BenchmarkEncodeCall(b *testing.B) {
+	codec := CodecV1{}
 	for i := 0; i < b.N; i++ {
 		msg := codec.EncodeCall(127, 0xFA01, []byte{7, 8, 9})
 		if len(msg) != 6 {

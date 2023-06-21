@@ -1,15 +1,11 @@
 package yorpc
 
-type Connection interface {
-	// OnMessage([]byte) error
-	// WriteMessage([]byte) error
-	// SetSession(ClientSession, ServerSession)
-
+type Conn interface {
 	// Write a message
 	WriteMessage([]byte) error
 
 	// Blocking until a message received
-	ReceiveMessage() ([]byte, error)
+	ReadMessage() ([]byte, error)
 
 	// Close ...
 	Close() error

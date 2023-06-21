@@ -10,30 +10,33 @@ import (
 	"time"
 
 	"github.com/cupen/yorpc"
+	"github.com/cupen/yorpc/connection/websocket"
+)
+
+var (
+	server   = flag.String("server", "127.0.0.1:7788", "run server on a network address")
+	client   = flag.Bool("client", false, "run client")
+	nickName = flag.String("nickname", "", "your nickname(only for client)")
 )
 
 func main() {
-	var addr = flag.String("address", "127.0.0.1:7788", "network address")
-	var client = flag.Bool("client", false, "run client")
-	var server = flag.Bool("server", false, "run server")
-	var nickName = flag.String("nickname", "bot-1", "your nickname(only for client)")
 	flag.Parse()
-	if *server {
-		runServer(*addr)
-		return
-	}
 	if *client {
-		runClient(*addr, *nickName)
+		if *nickName == "" {
+			log.Printf("missing --nickname")
+			return
+		}
+		runClient(*server, *nickName)
 		return
 	}
-	log.Printf("--server or --client required")
+	runServer(*server)
 	return
 }
 
 func runServer(address string) {
 	opts := &yorpc.Options{}
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		conn, err := yorpc.NewWebsocketByHTTP(r, w)
+		conn, err := websocket.NewServer(r, w)
 		if err != nil {
 			panic(err)
 		}
@@ -42,7 +45,7 @@ func runServer(address string) {
 			panic(fmt.Errorf("missing nickname"))
 		}
 		p := chatroom.NewChatroomSession(chatroom.NewPlayerImpl(id))
-		s := yorpc.NewServer(conn, p, opts)
+		s := yorpc.NewSession(conn, p, opts)
 		if err := s.Run(); err != nil {
 			log.Printf("server stopped: %v", err)
 		}
@@ -51,13 +54,13 @@ func runServer(address string) {
 	http.ListenAndServe(address, nil)
 }
 
-func runClient(address string, nickName string) {
-	url := fmt.Sprintf("ws://%s?nickname=%s", address, nickName)
-	c, err := yorpc.NewClient(url)
+func runClient(addr string, nickName string) {
+	url := fmt.Sprintf("ws://%s?nickname=%s", addr, nickName)
+	conn, err := websocket.NewClient(url, 3*time.Second)
 	if err != nil {
 		panic(err)
 	}
-	c.Start()
+	c := yorpc.NewClient(conn, 3*time.Second)
 	// defer c.Stop()
 	i := 0
 	for {

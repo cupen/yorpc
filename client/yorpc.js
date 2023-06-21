@@ -3,7 +3,7 @@ class Client {
         this.conn = ws
     }
 
-    call(msgId, bytes) {
+    call(msgId, bytes, timeout=5) {
         this.conn.send(bytes)
     }
 
@@ -29,4 +29,5 @@ if (require.main === module) {
         console.log(event)
     }
 }
+
 

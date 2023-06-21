@@ -3,38 +3,31 @@ package yorpc
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync/atomic"
-
-	"github.com/gobwas/ws"
+	"time"
 )
 
 type Client struct {
-	conn       Connection
-	callbacks  map[uint8]func([]byte)
+	conn       Conn
+	callbacks  [256]func([]byte)
 	callIdSeed int32
+	timeout    time.Duration
 }
 
-func NewClient(url string) (*Client, error) {
-	ctx := context.Background()
-	conn, _, _, err := ws.Dial(ctx, url)
-	if err != nil {
-		return nil, err
+func NewClient(conn Conn, timeout time.Duration) *Client {
+	c := &Client{
+		conn:      conn,
+		callbacks: [256]func([]byte){},
+		timeout:   timeout,
 	}
-
-	return &Client{
-		conn: &WebsocketConn{
-			conn:  conn,
-			state: ws.StateClientSide,
-		},
-		callbacks: map[uint8]func([]byte){},
-	}, nil
+	c.Start()
+	return c
 }
 
-func NewClientByConn(conn Connection) *Client {
+func NewClientByConn(conn Conn) *Client {
 	return &Client{
 		conn:      conn,
-		callbacks: map[uint8]func([]byte){},
+		callbacks: [256]func([]byte){},
 	}
 }
 
@@ -59,18 +52,14 @@ func (c *Client) Run() error {
 		panic(fmt.Errorf("nil connection"))
 	}
 	for {
-		msg, err := c.conn.ReceiveMessage()
+		msg, err := c.conn.ReadMessage()
 		if err != nil {
 			return err
 		}
-
-		log.Printf("server received message: %v", msg)
 		if len(msg) <= 0 {
 			continue
 		}
-
-		err = c.onMessage(msg)
-		if err != nil {
+		if err = c.onMessage(msg); err != nil {
 			return err
 		}
 	}
@@ -78,14 +67,17 @@ func (c *Client) Run() error {
 
 func (c *Client) Call(ctx context.Context, id uint16, args []byte) ([]byte, error) {
 	var callId = c.nextCallId()
-	// var callRs []byte = nil
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	var callRsCh = make(chan []byte)
 	c.callbacks[callId] = func(rs []byte) {
-		// callRs = rs
 		callRsCh <- rs
-		// cancel()
+	}
+	var cancel context.CancelFunc
+	if ctx == nil {
+		ctx = context.TODO()
+		if c.timeout > 0 {
+			ctx, cancel = context.WithTimeout(ctx, c.timeout)
+			defer cancel()
+		}
 	}
 
 	msg := codec.EncodeCall(callId, id, args)
@@ -93,26 +85,25 @@ func (c *Client) Call(ctx context.Context, id uint16, args []byte) ([]byte, erro
 	if err != nil {
 		return nil, err
 	}
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case rs := <-callRsCh:
-			return rs, nil
-		}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case rs := <-callRsCh:
+		return rs, nil
 	}
+
 }
 
 func (c *Client) Send(id uint16, args []byte) error {
-	log.Printf("client.Send id=%d args=%v", id, args)
+	// slog.Info("[client] send", "id", id, "args", args)
 	msg := codec.EncodeSend(id, args)
 	return c.conn.WriteMessage(msg)
 }
 
 func (c *Client) OnCallback(callId uint8, result []byte) error {
-	log.Printf("client.OnCallBack callId=%d result=%v", callId, result)
-	cb, ok := c.callbacks[callId]
-	_ = ok
+	// slog.Info("[client] callback", "callId", callId, "result", result)
+	cb := c.callbacks[callId]
 	if cb == nil {
 		return fmt.Errorf("no callback for callId(%d)", callId)
 	}

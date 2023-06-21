@@ -2,7 +2,7 @@ package chatroom
 
 @meta(id=10001, encoding=tiny, desc="聊天消息")
 struct Message {
-    string UserID  = 1;
+    int64 UserID  = 1;
     string Text = 2;
     int64 int64 = 3;
 }
