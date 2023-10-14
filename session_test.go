@@ -2,6 +2,7 @@ package yorpc
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"testing"
 	"time"
@@ -29,17 +30,38 @@ func (this *TestClient) Start() {
 
 var opts = Options{MaxConn: 1000, HeartBeat: 1}
 var msgDatas = make(chan []byte)
-var handlers = map[uint16]MsgHandler{
-	101: func(session Session, msgData []byte) []byte {
-		msgDatas <- msgData
-		session.SendMsg(2000, []byte("resp"))
-		return nil
-	},
 
-	102: func(session Session, msgData []byte) []byte {
+// var handler = func(session Session, msgId uint16, msgData []byte) (uint16, []byte) {
+// 	switch msgId {
+// 	case 101:
+// 		return 0, msgData
+// 	case 102:
+// 		return 0, msgData
+// 	case 2000:
+// 		return 0, msgData
+// 	default:
+// 		log.Printf("unknown msgId:%d\n", msgId)
+// 		return 0, []byte{}
+// 	}
+// }
+
+var handler = func(session Session, msgId uint16, msgData []byte) (uint16, []byte) {
+	switch msgId {
+	case 101:
 		msgDatas <- msgData
-		return msgData
-	},
+		session.SendMsg(2000, []byte("resp-2000"))
+		return 0, nil
+	case 102:
+		msgDatas <- msgData
+		return 0, msgData
+	case 2000:
+		msgDatas <- []byte("resp-2000")
+		return 0, msgData
+	default:
+		log.Printf("unknown msgId:%d\n", msgId)
+		msgDatas <- []byte{}
+	}
+	return 0, nil
 }
 var isStarting = false
 
@@ -50,7 +72,7 @@ func startServerForTest(listen string, path string) {
 	isStarting = true
 	http.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{}
-		session := NewRpcSession("1", handlers)
+		session := NewRpcSession("1", "", handler)
 		ws, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			panic(err)
@@ -67,7 +89,7 @@ func newClient(url string) (*RpcSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := NewRpcSession("abc", handlers)
+	c := NewRpcSession("abc", "", handler)
 	c.Connect2(ws)
 	return c, nil
 }
@@ -101,15 +123,15 @@ func TestRPC(t *testing.T) {
 			t.Logf("respData: %s", string(respData))
 			msgDatas <- []byte("resp")
 		})
+		assert.Equal("resp-2000", string(msgDatas_get()))
 		assert.Equal("hello yorpc2!!!", string(msgDatas_get()))
-		assert.Equal("resp", string(msgDatas_get()))
 	}
 }
 
 func TestKeepAlive(t *testing.T) {
 	assert := assert.New(t)
 
-	s := NewRpcSession("", nil)
+	s := NewRpcSession("", "", nil)
 	s.KeepAlive(time.Second)
 	now := time.Now()
 	assert.True(s.IsAlive(now))

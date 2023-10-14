@@ -40,19 +40,18 @@ type RpcSession struct {
 	id         string
 	token      string
 	ws         *websocket.Conn
-	Handlers   map[uint16]MsgHandler
-	Callbacks  map[uint8]func([]byte)
+	handler    MsgHandler
+	callbacks  map[uint8]func([]byte)
 	callSeqNum uint8
 	closedAt   time.Time
 	mux        sync.Mutex
 }
 
-func NewRpcSession(id, token string, handlers map[uint16]MsgHandler) *RpcSession {
+func NewRpcSession(id string, token string, handler MsgHandler) *RpcSession {
 	return &RpcSession{
 		id:        id,
-		token:     token,
-		Handlers:  handlers,
-		Callbacks: map[uint8]func([]byte){},
+		handler:   handler,
+		callbacks: map[uint8]func([]byte){},
 	}
 }
 
@@ -133,13 +132,13 @@ func (this *RpcSession) onMessage(msgBody []byte) {
 
 		} else {
 			msgData = msgBody[1:]
-			callback, _ := this.Callbacks[callSeqId]
+			callback, _ := this.callbacks[callSeqId]
 			if callback == nil {
 				log.Printf("Invalid callSeqId: %d. callFlag: %d\n", callSeqId, callFlag)
 				return
 			}
 			callback(msgData)
-			this.Callbacks[callSeqId] = nil
+			this.callbacks[callSeqId] = nil
 			return
 		}
 	} else {
@@ -147,12 +146,9 @@ func (this *RpcSession) onMessage(msgBody []byte) {
 		msgId = binary.LittleEndian.Uint16(msgBody[1:3])
 		msgData = msgBody[3:]
 	}
-	handler, _ := this.Handlers[msgId]
-	if handler == nil {
-		log.Printf("Invalid msgId: %d. callFlag: %d\n", msgId, callFlag)
-		return
-	}
-	callRs = handler(this, msgData)
+	code, respData := this.handler(this, msgId, msgData)
+	_ = code
+	callRs = respData
 }
 
 func (this *RpcSession) Call(msgId uint16, data []byte, callback func([]byte)) {
@@ -167,7 +163,7 @@ func (this *RpcSession) Call(msgId uint16, data []byte, callback func([]byte)) {
 	msgBody := []byte{callFlag}
 	msgBody = append(msgBody, msgIdBytes...)
 	msgBody = append(msgBody, data...)
-	this.Callbacks[this.callSeqNum] = callback
+	this.callbacks[this.callSeqNum] = callback
 	if this.ws == nil {
 		log.Printf("websocket was nil\n")
 		return
