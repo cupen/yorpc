@@ -22,44 +22,47 @@ var Events = struct {
 	KeepAliveTick: 3,
 }
 
-type Session interface {
-	GetType() string
-	GetID() string
-	GetPlayer() interface{}
-	GetToken() string
-	OnEvent(Event) error
-	SendMsg(uint16, []byte)
-	// Call(uint16, []byte, func([]byte))
-	ReturnMsg(uint8, []byte)
-	KeepAlive(time.Duration)
-	IsAlive(now time.Time) bool
-	Stop()
+type ID interface {
+	int64 | uint64 | string
 }
 
-type RpcSession struct {
-	id         string
+type Session[id ID] interface {
+	GetID() id
+	GetType() string
+	SendMsg(uint16, []byte)
+	IsAlive(now time.Time) bool
+	OnEvent(Event) error
+	// GetPlayer() interface{}
+	// GetToken() string
+	// Call(uint16, []byte, func([]byte))
+	// ReturnMsg(uint8, []byte)
+	// KeepAlive(time.Duration)
+}
+
+type RpcSession[id ID] struct {
+	id         id
 	token      string
 	ws         *websocket.Conn
-	handler    MsgHandler
+	handler    MsgHandler[id]
 	callbacks  map[uint8]func([]byte)
 	callSeqNum uint8
 	closedAt   time.Time
 	mux        sync.Mutex
 }
 
-func NewRpcSession(id string, token string, handler MsgHandler) *RpcSession {
-	return &RpcSession{
-		id:        id,
+func NewRpcSession[id ID](_id id, token string, handler MsgHandler[id]) *RpcSession[id] {
+	return &RpcSession[id]{
+		id:        _id,
 		handler:   handler,
 		callbacks: map[uint8]func([]byte){},
 	}
 }
 
-func (this *RpcSession) Connect(ws *WebSocket) error {
+func (this *RpcSession[id]) Connect(ws *WebSocket) error {
 	return this.Connect2(ws.Conn)
 }
 
-func (this *RpcSession) Connect2(ws *websocket.Conn) error {
+func (this *RpcSession[id]) Connect2(ws *websocket.Conn) error {
 	if ws == nil {
 		return fmt.Errorf("Invalid websocket")
 	}
@@ -67,18 +70,18 @@ func (this *RpcSession) Connect2(ws *websocket.Conn) error {
 	return nil
 }
 
-func (this *RpcSession) KeepAlive(ttl time.Duration) {
+func (this *RpcSession[id]) KeepAlive(ttl time.Duration) {
 	this.closedAt = time.Now().Add(ttl)
 }
 
-func (this *RpcSession) IsAlive(now time.Time) bool {
+func (this *RpcSession[id]) IsAlive(now time.Time) bool {
 	if this.closedAt.IsZero() {
 		return true
 	}
 	return now.Before(this.closedAt)
 }
 
-func (this *RpcSession) Start(opts Options) error {
+func (this *RpcSession[id]) Start(opts Options) error {
 	if this.ws == nil {
 		return fmt.Errorf("Invalid ws")
 	}
@@ -105,13 +108,13 @@ func (this *RpcSession) Start(opts Options) error {
 	return nil
 }
 
-func (this *RpcSession) write(msgType int, data []byte) error {
+func (this *RpcSession[id]) write(msgType int, data []byte) error {
 	this.mux.Lock()
 	defer this.mux.Unlock()
 	return this.ws.WriteMessage(msgType, data)
 }
 
-func (this *RpcSession) onMessage(msgBody []byte) {
+func (this *RpcSession[id]) onMessage(msgBody []byte) {
 	callFlag := msgBody[0]
 	isReq := (callFlag >> 7) == 1
 	callSeqId := (callFlag & 0x7f)
@@ -151,7 +154,7 @@ func (this *RpcSession) onMessage(msgBody []byte) {
 	callRs = respData
 }
 
-func (this *RpcSession) Call(msgId uint16, data []byte, callback func([]byte)) {
+func (this *RpcSession[id]) Call(msgId uint16, data []byte, callback func([]byte)) {
 	// log.Printf("call %d\n", msgId)
 	this.callSeqNum++
 	callSeqId := this.callSeqNum
@@ -172,7 +175,7 @@ func (this *RpcSession) Call(msgId uint16, data []byte, callback func([]byte)) {
 	this.write(websocket.BinaryMessage, msgBody)
 }
 
-func (this *RpcSession) SendMsg(msgId uint16, data []byte) {
+func (this *RpcSession[id]) SendMsg(msgId uint16, data []byte) {
 	// log.Printf("send %d\n", msgId)
 	msgIdBytes := []byte{0, 0}
 	binary.LittleEndian.PutUint16(msgIdBytes, msgId)
@@ -187,7 +190,7 @@ func (this *RpcSession) SendMsg(msgId uint16, data []byte) {
 	this.write(websocket.BinaryMessage, msgBody)
 }
 
-func (this *RpcSession) ReturnMsg(callSeqId uint8, data []byte) {
+func (this *RpcSession[id]) ReturnMsg(callSeqId uint8, data []byte) {
 	// log.Printf("return call %d\n", callSeqId)
 	// isReq + callSeqId
 	var callFlag uint8 = (0 << 7) + (callSeqId & 0x7f)
@@ -202,24 +205,23 @@ func (this *RpcSession) ReturnMsg(callSeqId uint8, data []byte) {
 	}
 }
 
-func (this *RpcSession) GetType() string {
+func (this *RpcSession[id]) GetType() string {
 	return "player"
 }
 
-func (this *RpcSession) GetID() string {
+func (this *RpcSession[id]) GetID() id {
 	return this.id
 }
 
-func (this *RpcSession) GetToken() string {
+func (this *RpcSession[id]) GetToken() string {
 	return this.token
 }
 
-func (this *RpcSession) GetPlayer() interface{} {
-	// panic(fmt.Errorf("Not implement"))
-	return nil
+func (this *RpcSession[id]) GetPlayer() interface{} {
+	panic(fmt.Errorf("Not implement"))
 }
 
-func (this *RpcSession) OnEvent(e Event) error {
+func (this *RpcSession[id]) OnEvent(e Event) error {
 	switch e {
 	case Events.Starting:
 	case Events.Stopping:
@@ -228,7 +230,7 @@ func (this *RpcSession) OnEvent(e Event) error {
 	return nil
 }
 
-func (this *RpcSession) Stop() {
+func (this *RpcSession[id]) Stop() {
 	this.mux.Lock()
 	defer this.mux.Unlock()
 	if this.ws != nil {

@@ -45,7 +45,7 @@ var msgDatas = make(chan []byte)
 // 	}
 // }
 
-var handler = func(session Session, msgId uint16, msgData []byte) (uint16, []byte) {
+var handler = func(session Session[string], msgId uint16, msgData []byte) (uint16, []byte) {
 	switch msgId {
 	case 101:
 		msgDatas <- msgData
@@ -84,7 +84,7 @@ func startServerForTest(listen string, path string) {
 	time.Sleep(10 * time.Millisecond)
 }
 
-func newClient(url string) (*RpcSession, error) {
+func newClient(url string) (*RpcSession[string], error) {
 	ws, _, err := websocket.DefaultDialer.Dial(url, http.Header{})
 	if err != nil {
 		return nil, err
