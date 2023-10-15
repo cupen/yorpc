@@ -33,6 +33,7 @@ type Session[id ID] interface {
 	IsAlive(now time.Time) bool
 	KeepAlive(time.Duration)
 	OnEvent(Event) error
+	Stop()
 	// GetPlayer() interface{}
 	// GetToken() string
 	// Call(uint16, []byte, func([]byte))
