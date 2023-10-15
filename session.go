@@ -31,12 +31,12 @@ type Session[id ID] interface {
 	GetType() string
 	SendMsg(uint16, []byte)
 	IsAlive(now time.Time) bool
+	KeepAlive(time.Duration)
 	OnEvent(Event) error
 	// GetPlayer() interface{}
 	// GetToken() string
 	// Call(uint16, []byte, func([]byte))
 	// ReturnMsg(uint8, []byte)
-	// KeepAlive(time.Duration)
 }
 
 type RpcSession[id ID] struct {
