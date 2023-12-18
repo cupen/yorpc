@@ -34,8 +34,8 @@ type Session[id ID] interface {
 	KeepAlive(time.Duration)
 	OnEvent(Event) error
 	Stop()
+	GetToken() string
 	// GetPlayer() interface{}
-	// GetToken() string
 	// Call(uint16, []byte, func([]byte))
 	// ReturnMsg(uint8, []byte)
 }
@@ -54,6 +54,7 @@ type RpcSession[id ID] struct {
 func NewRpcSession[id ID](_id id, token string, handler MsgHandler[id]) *RpcSession[id] {
 	return &RpcSession[id]{
 		id:        _id,
+		token:     token,
 		handler:   handler,
 		callbacks: map[uint8]func([]byte){},
 	}
