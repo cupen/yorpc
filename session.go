@@ -220,7 +220,7 @@ func (this *RpcSession[id]) GetToken() string {
 }
 
 func (this *RpcSession[id]) GetPlayer() interface{} {
-	panic(fmt.Errorf("Not implement"))
+	panic(fmt.Errorf("not implement"))
 }
 
 func (this *RpcSession[id]) OnEvent(e Event) error {
