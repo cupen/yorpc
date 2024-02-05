@@ -66,7 +66,7 @@ func (this *RpcSession[id]) Connect(ws *WebSocket) error {
 
 func (this *RpcSession[id]) Connect2(ws *websocket.Conn) error {
 	if ws == nil {
-		return fmt.Errorf("Invalid websocket")
+		return fmt.Errorf("invalid websocket")
 	}
 	this.ws = ws
 	return nil
@@ -85,7 +85,7 @@ func (this *RpcSession[id]) IsAlive(now time.Time) bool {
 
 func (this *RpcSession[id]) Start(opts Options) error {
 	if this.ws == nil {
-		return fmt.Errorf("Invalid ws")
+		return fmt.Errorf("no ws connection")
 	}
 	this.OnEvent(Events.Starting)
 	for {
@@ -107,7 +107,7 @@ func (this *RpcSession[id]) Start(opts Options) error {
 			return nil
 		}
 	}
-	return nil
+	// return nil
 }
 
 func (this *RpcSession[id]) write(msgType int, data []byte) error {
@@ -137,7 +137,7 @@ func (this *RpcSession[id]) onMessage(msgBody []byte) {
 
 		} else {
 			msgData = msgBody[1:]
-			callback, _ := this.callbacks[callSeqId]
+			callback := this.callbacks[callSeqId]
 			if callback == nil {
 				log.Printf("Invalid callSeqId: %d. callFlag: %d\n", callSeqId, callFlag)
 				return

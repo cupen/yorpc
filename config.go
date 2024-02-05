@@ -11,20 +11,20 @@ type Options struct {
 	ReadBufferSize int // 缓存的消息数量
 }
 
-func (this *Options) Check() {
-	if this.MaxConn <= 0 {
-		panic(fmt.Errorf("Invalid MaxConn:%d", this.MaxConn))
+func (opts *Options) Check() {
+	if opts.MaxConn <= 0 {
+		panic(fmt.Errorf("invalid MaxConn:%d", opts.MaxConn))
 	}
 
-	if this.HeartBeat < 60 {
-		panic(fmt.Errorf("Invalid HeartBeat:%d", this.HeartBeat))
+	if opts.HeartBeat < 60 {
+		panic(fmt.Errorf("invalid HeartBeat:%d", opts.HeartBeat))
 	}
 }
 
-func (this *Options) GetHeartBeatDrt() time.Duration {
-	if this == nil {
+func (opts *Options) GetHeartBeatDrt() time.Duration {
+	if opts == nil {
 		return 0
 	}
-	return time.Duration(this.HeartBeat) * time.Second
+	return time.Duration(opts.HeartBeat) * time.Second
 
 }

@@ -16,16 +16,16 @@ type TestClient struct {
 	handler func(int, []byte)
 }
 
-func (this *TestClient) Start() {
-	if this.ws == nil {
+func (tc *TestClient) Start() {
+	if tc.ws == nil {
 		panic(fmt.Errorf("Invalid websocket."))
 	}
 
-	msgType, msgBody, err := this.ws.ReadMessage()
+	msgType, msgBody, err := tc.ws.ReadMessage()
 	if err != nil {
 		panic(err)
 	}
-	this.handler(msgType, msgBody)
+	tc.handler(msgType, msgBody)
 }
 
 var opts = Options{MaxConn: 1000, HeartBeat: 1}
