@@ -153,7 +153,7 @@ func (this *RpcSession[id]) onMessage(msgBody []byte) {
 	}
 	code, respData := this.handler(this, msgId, msgData)
 	callRs = append([]byte{0, 0}, respData...)
-	binary.LittleEndian.PutUint16(callRs[0:2], code)
+	binary.LittleEndian.PutUint16(callRs, code)
 }
 
 func (this *RpcSession[id]) Call(msgId uint16, data []byte, callback func([]byte)) {
