@@ -10,20 +10,20 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type ID interface {
+	int64 | uint64 | string
+}
+
 type Event int
 
 var Events = struct {
-	Starting      Event
-	Stopping      Event
-	KeepAliveTick Event
+	Start     Event
+	Stop      Event
+	KeepAlive Event
 }{
-	Starting:      1,
-	Stopping:      2,
-	KeepAliveTick: 3,
-}
-
-type ID interface {
-	int64 | uint64 | string
+	Start:     1,
+	Stop:      2,
+	KeepAlive: 3,
 }
 
 type Session[id ID] interface {
@@ -33,7 +33,7 @@ type Session[id ID] interface {
 	IsAlive(now time.Time) bool
 	KeepAlive(time.Duration)
 	OnEvent(Event) error
-	Stop()
+	Close()
 	GetToken() string
 	// GetPlayer() interface{}
 	// Call(uint16, []byte, func([]byte))
@@ -87,11 +87,11 @@ func (this *RpcSession[id]) Start(opts Options) error {
 	if this.ws == nil {
 		return fmt.Errorf("no ws connection")
 	}
-	this.OnEvent(Events.Starting)
+	this.OnEvent(Events.Start)
 	for {
 		msgType, msgBody, err := this.ws.ReadMessage()
 		if err != nil {
-			this.OnEvent(Events.Stopping)
+			this.OnEvent(Events.Stop)
 			return err
 		}
 		// log.Printf("msgType:%d msgBody:%v\n", msgType, msgBody)
@@ -117,37 +117,37 @@ func (this *RpcSession[id]) write(msgType int, data []byte) error {
 }
 
 func (this *RpcSession[id]) onMessage(msgBody []byte) {
-	callFlag := msgBody[0]
-	isReq := (callFlag >> 7) == 1
-	callSeqId := (callFlag & 0x7f)
+	var callFlag = msgBody[0]
+	var isCall = (callFlag >> 7) == 1
+	var callId = (callFlag & 0x7f)
 
-	// callback
 	var msgId uint16
 	var msgData []byte
 	var callRs []byte = nil
-	if callSeqId > 0 {
-		if isReq {
-			// byte-2~3
+	if callId > 0 {
+		if isCall {
+			// on-call
 			msgId = binary.LittleEndian.Uint16(msgBody[1:3])
 			msgData = msgBody[3:]
 			defer func() {
 				// log.Printf("return msg callSeqId:%d. callFlag:%d data:%v\n", callSeqId, callFlag, callRs)
-				this.ReturnMsg(callSeqId, callRs)
+				this.ReturnMsg(callId, callRs)
 			}()
 
 		} else {
+			// on-callback
 			msgData = msgBody[1:]
-			callback := this.callbacks[callSeqId]
+			callback := this.callbacks[callId]
 			if callback == nil {
-				log.Printf("Invalid callSeqId: %d. callFlag: %d\n", callSeqId, callFlag)
+				log.Printf("Invalid callSeqId: %d. callFlag: %d\n", callId, callFlag)
 				return
 			}
 			callback(msgData)
-			this.callbacks[callSeqId] = nil
+			delete(this.callbacks, callId)
 			return
 		}
 	} else {
-		// byte-2~3
+		// on-send
 		msgId = binary.LittleEndian.Uint16(msgBody[1:3])
 		msgData = msgBody[3:]
 	}
@@ -162,12 +162,9 @@ func (this *RpcSession[id]) Call(msgId uint16, data []byte, callback func([]byte
 	callSeqId := this.callSeqNum
 
 	var callFlag uint8 = (1 << 7) + (callSeqId & 0x7f)
-
-	msgIdBytes := []byte{0, 0}
-	binary.LittleEndian.PutUint16(msgIdBytes, msgId)
-	msgBody := []byte{callFlag}
-	msgBody = append(msgBody, msgIdBytes...)
-	msgBody = append(msgBody, data...)
+	var head = []byte{callFlag, 0, 0}
+	binary.LittleEndian.PutUint16(head[1:], msgId)
+	var msgBody = append(head, data...)
 	this.callbacks[this.callSeqNum] = callback
 	if this.ws == nil {
 		log.Printf("websocket was nil\n")
@@ -179,12 +176,10 @@ func (this *RpcSession[id]) Call(msgId uint16, data []byte, callback func([]byte
 
 func (this *RpcSession[id]) SendMsg(msgId uint16, data []byte) {
 	// log.Printf("send %d\n", msgId)
-	msgIdBytes := []byte{0, 0}
-	binary.LittleEndian.PutUint16(msgIdBytes, msgId)
+	var head = []byte{0, 0, 0}
+	binary.LittleEndian.PutUint16(head[1:], msgId)
 
-	var callFlag uint8 = 0
-	msgBody := append([]byte{callFlag}, msgIdBytes...)
-	msgBody = append(msgBody, data...)
+	var msgBody = append(head, data...)
 	if this.ws == nil {
 		log.Printf("websocket was nil\n")
 		return
@@ -225,14 +220,14 @@ func (this *RpcSession[id]) GetPlayer() interface{} {
 
 func (this *RpcSession[id]) OnEvent(e Event) error {
 	switch e {
-	case Events.Starting:
-	case Events.Stopping:
+	case Events.Start:
+	case Events.Stop:
 	default:
 	}
 	return nil
 }
 
-func (this *RpcSession[id]) Stop() {
+func (this *RpcSession[id]) Close() {
 	this.mux.Lock()
 	defer this.mux.Unlock()
 	if this.ws != nil {

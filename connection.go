@@ -1,6 +1,6 @@
 package yorpc
 
-type Connection interface {
-	Start(*Options) error
+type Conn interface {
+	Start() error
 	Stop()
 }

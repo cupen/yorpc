@@ -12,7 +12,7 @@ type WebSocket struct {
 	options  Options
 }
 
-func OpenWebSocket(options Options, w http.ResponseWriter, r *http.Request) (*WebSocket, error) {
+func OpenWebSocket(opts Options, w http.ResponseWriter, r *http.Request) (*WebSocket, error) {
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			return true
@@ -24,7 +24,7 @@ func OpenWebSocket(options Options, w http.ResponseWriter, r *http.Request) (*We
 		return nil, err
 	}
 	ws := WebSocket{
-		options:  options,
+		options:  opts,
 		Upgrader: upgrader,
 		Conn:     conn,
 	}

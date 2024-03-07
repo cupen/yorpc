@@ -26,5 +26,4 @@ func (opts *Options) GetHeartBeatDrt() time.Duration {
 		return 0
 	}
 	return time.Duration(opts.HeartBeat) * time.Second
-
 }

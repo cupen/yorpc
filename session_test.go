@@ -150,7 +150,7 @@ func TestStartStop(t *testing.T) {
 	url := fmt.Sprintf("ws://%s/testcase1", addr)
 	c, err := newClient(url)
 	assert.NoError(err)
-	c.Stop()
+	c.Close()
 
 	ch := make(chan error)
 	go func() {
